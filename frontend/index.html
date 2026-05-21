@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EmoLens Live Studio</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Face-API.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+    <!-- MediaPipe Face Mesh -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <div class="logo">
+                <span class="gradient-text">EmoLens</span> 
+                <span class="badge">Suite</span>
+            </div>
+            <div class="tabs" style="display: flex; gap: 1rem; margin: 0 2rem;">
+                <button class="tab-btn active" onclick="switchTab('live')" style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid var(--border-color); background: var(--primary); color: white;">🔴 Live Studio</button>
+                <button class="tab-btn" onclick="switchTab('media')" style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid var(--border-color); background: transparent; color: white;">📂 Media Upload</button>
+                <button class="tab-btn" onclick="switchTab('converter')" style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid var(--border-color); background: transparent; color: white;">🔄 Converter</button>
+            </div>
+            <div class="controls" id="live-controls">
+                <button id="btn-visual" class="modality-btn" onclick="toggleModality('visual')">👁️ Visual</button>
+                <button id="btn-audio" class="modality-btn" onclick="toggleModality('audio')">🎙️ Audio</button>
+                <button id="btn-text" class="modality-btn" onclick="toggleModality('text')">💬 Text</button>
+                <button id="btn-start" class="action-btn start" onclick="startSession()">▶ Start Session</button>
+                <button id="btn-stop" class="action-btn stop" onclick="stopSession()" disabled>⏹ End Session</button>
+            </div>
+        </header>
+
+        <!-- LIVE STUDIO TAB -->
+        <main class="dashboard tab-content active" id="tab-live">
+            <div class="col inputs-col">
+                <div class="card video-card">
+                    <h3>Live Feed <span class="live-indicator" id="live-dot"></span> <span id="status-visual" class="status-badge inactive">Visual inactive</span></h3>
+                    <div class="video-wrapper" style="position: relative; overflow: hidden; border-radius: 8px;">
+                        <video id="video-feed" autoplay muted playsinline style="width: 100%; display: block; border-radius: 8px;"></video>
+                        <canvas id="canvas-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10;"></canvas>
+                        <canvas id="canvas-hidden" style="display: none;"></canvas>
+                    </div>
+                    <div class="standalone-actions" style="margin-top: 10px; display: flex; gap: 0.5rem;">
+                        <button class="action-btn" onclick="toggleStandalonePanel('visual')" style="padding: 6px 12px; font-size: 0.75rem; background: var(--primary); border: none; border-radius: 6px; color: white; cursor: pointer;">👁️ Separate Visual Output</button>
+                    </div>
+                    <div id="standalone-visual-panel" style="display: none; margin-top: 10px; background: rgba(0,0,0,0.4); padding: 12px; border-radius: 8px; font-size: 0.8rem; border: 1px solid var(--border-color); line-height: 1.4;">
+                        <strong>Face Rect:</strong> <span id="standalone-vis-box" style="color: #10b981;">Searching face...</span><br/>
+                        <strong>CNN Standalone Emotions:</strong> <span id="standalone-vis-emotions" style="color: #6366f1;">Waiting for live stream...</span>
+                    </div>
+                </div>
+
+                <div class="card text-card">
+                    <h3>Text Input <span id="status-text" class="status-badge inactive">Text inactive</span></h3>
+                    <textarea id="text-input" placeholder="Type here for real-time text analysis..."></textarea>
+                    <div class="standalone-actions" style="margin-top: 10px; display: flex; gap: 0.5rem;">
+                        <button class="action-btn" onclick="triggerStandaloneAnalysis('text')" style="padding: 6px 12px; font-size: 0.75rem; background: var(--primary); border: none; border-radius: 6px; color: white; cursor: pointer;">💬 Separate Text Analysis</button>
+                    </div>
+                    <div id="standalone-text-panel" style="display: none; margin-top: 10px; background: rgba(0,0,0,0.4); padding: 12px; border-radius: 8px; font-size: 0.8rem; border: 1px solid var(--border-color); line-height: 1.4;">
+                        <strong>VADER Lexicon Compound:</strong> <span id="standalone-text-lexicon" style="color: #f59e0b;">N/A</span><br/>
+                        <strong>RoBERTa Standalone Transformer:</strong> <span id="standalone-text-transformer" style="color: #a855f7;">Waiting for input...</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col analytics-col">
+                <div class="card radar-card">
+                    <h3>Emotion Fusion Radar</h3>
+                    <div class="chart-container">
+                        <canvas id="radarChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card acoustic-card">
+                    <h3>Acoustic Detector <span id="status-audio" class="status-badge inactive">Audio inactive</span></h3>
+                    <div class="visualizer-wrapper">
+                        <canvas id="acoustic-waveform"></canvas>
+                    </div>
+                    <div class="standalone-actions" style="margin-top: 10px; display: flex; gap: 0.5rem;">
+                        <button class="action-btn" onclick="toggleStandalonePanel('audio')" style="padding: 6px 12px; font-size: 0.75rem; background: var(--primary); border: none; border-radius: 6px; color: white; cursor: pointer;">🎙️ Separate Audio Output</button>
+                    </div>
+                    <div id="standalone-audio-panel" style="display: none; margin-top: 10px; background: rgba(0,0,0,0.4); padding: 12px; border-radius: 8px; font-size: 0.8rem; border: 1px solid var(--border-color); line-height: 1.4;">
+                        <strong>Acoustic Speaking Rate:</strong> <span id="standalone-audio-rate" style="color: #10b981;">0.0 syllables/sec</span><br/>
+                        <strong>Speech Wav2Vec2 Emotions:</strong> <span id="standalone-audio-transformer" style="color: #6366f1;">Waiting for live stream...</span>
+                    </div>
+                </div>
+
+                <div class="card metrics-card">
+                    <h3>Kinematic Arousal Tracker</h3>
+                    <div class="arousal-meter">
+                        <div class="meter-bar">
+                            <div class="meter-fill" id="arousal-fill"></div>
+                        </div>
+                        <div class="meter-values">
+                            <span id="arousal-val">0.00</span>
+                            <span class="detail">Vel: <span id="vel-val">0.0</span> | Acc: <span id="acc-val">0.0</span></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card timeline-card" style="grid-column: 1 / -1;">
+                <h3>Running Timeline</h3>
+                <div class="chart-container-timeline">
+                    <canvas id="timelineChart"></canvas>
+                </div>
+            </div>
+        </main>
+        
+        <!-- MEDIA UPLOAD TAB -->
+        <main class="dashboard tab-content" id="tab-media" style="display: none;">
+            <div class="card upload-card" style="grid-column: 1 / -1; text-align: center; padding: 3rem;">
+                <h3>Upload File for Analysis (Video, Audio, Text)</h3>
+                <input type="file" id="media-upload" accept="video/*,audio/*,text/plain" style="margin-top: 1rem;">
+                <button class="action-btn start" style="margin-top: 1rem;" onclick="analyzeUploadedFile()">Analyze File</button>
+            </div>
+            
+            <div class="card seaborn-card" id="seaborn-results" style="grid-column: 1 / -1; display: none;">
+                <h3>Seaborn Emotion Analysis Report</h3>
+                <div id="seaborn-images" style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-top: 1rem;">
+                    <!-- Seaborn plots will be injected here -->
+                </div>
+            </div>
+        </main>
+
+        <!-- CONVERTER TAB -->
+        <main class="dashboard tab-content" id="tab-converter" style="display: none;">
+            <div class="card converter-card" style="grid-column: 1 / -1;">
+                <h3>Modality & Language Converter</h3>
+                
+                <div style="display: flex; gap: 2rem; margin-top: 1rem;">
+                    <!-- Audio to Text -->
+                    <div style="flex: 1; background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 12px;">
+                        <h4>🎙️ Audio to Text (Speech Recognition)</h4>
+                        <button class="action-btn start" id="btn-stt" onclick="toggleSpeechToText()" style="margin-top: 1rem;">Start Listening</button>
+                        <p style="margin-top: 1rem; color: #94a3b8;">Transcript:</p>
+                        <div id="stt-output" style="min-height: 50px; background: rgba(255,255,255,0.05); padding: 0.5rem; border-radius: 8px;"></div>
+                    </div>
+
+                    <!-- Language Translation -->
+                    <div style="flex: 1; background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 12px;">
+                        <h4>🌐 Language Translation</h4>
+                        <textarea id="translate-input" placeholder="Text to translate..." style="height: 60px; margin-top: 1rem; width: 100%;"></textarea>
+                        <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                            <select id="target-lang" style="padding: 0.5rem; background: var(--bg-dark); color: white; border: 1px solid var(--border-color); border-radius: 8px;">
+                                <!-- Indian Languages -->
+                                <optgroup label="Indian Languages">
+                                    <option value="hi">Hindi</option>
+                                    <option value="te">Telugu</option>
+                                    <option value="ta">Tamil</option>
+                                    <option value="ml">Malayalam</option>
+                                    <option value="kn">Kannada</option>
+                                    <option value="bn">Bengali</option>
+                                    <option value="mr">Marathi</option>
+                                    <option value="gu">Gujarati</option>
+                                </optgroup>
+                                <!-- International Languages -->
+                                <optgroup label="International Languages">
+                                    <option value="en">English</option>
+                                    <option value="es">Spanish</option>
+                                    <option value="fr">French</option>
+                                    <option value="de">German</option>
+                                    <option value="zh">Chinese</option>
+                                    <option value="ja">Japanese</option>
+                                    <option value="ko">Korean</option>
+                                    <option value="ru">Russian</option>
+                                    <option value="ar">Arabic</option>
+                                </optgroup>
+                            </select>
+                            <button class="action-btn start" onclick="translateText()">Translate</button>
+                        </div>
+                        <p style="margin-top: 1rem; color: #94a3b8;">Translation:</p>
+                        <div id="translate-output" style="min-height: 50px; background: rgba(255,255,255,0.05); padding: 0.5rem; border-radius: 8px;"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Modal for Session Summary -->
+        <div id="summary-modal" class="modal">
+            <div class="modal-content">
+                <h2 class="gradient-text">Session Summary</h2>
+                <div id="summary-stats"></div>
+                <button class="action-btn start" onclick="generateSeabornReport()" style="margin-top: 1rem; width: 100%;">📊 Generate Seaborn Report</button>
+                <button class="action-btn" onclick="closeModal()" style="margin-top: 1rem; width: 100%;">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

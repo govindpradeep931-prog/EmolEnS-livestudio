@@ -1,0 +1,20 @@
+{
+  "name": "emolens-live-studio",
+  "version": "1.0.0",
+  "description": "EmoLens Live Studio multimodal emotion analysis app",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "python -m pytest backend -q"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "ws": "^8.20.0"
+  },
+  "engines": {
+    "node": ">=20",
+    "python": ">=3.10"
+  },
+  "private": true
+}

@@ -1,0 +1,28 @@
+# Dependencies and runtimes
+node_modules/
+node-v24.15.0-win-x64/
+.venv/
+backend/.venv/
+
+# Python cache and test artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# IDE/editor files
+.idea/
+.vscode/
+
+# Generated files
+frontend/reports/*.png
+backend/temp_audio_*.webm
+*.log
+
+# Large reference/source dumps not needed for deployment
+Emotion-Detection-FER2013-master/
+MultiModalSA-master/
+whisper-main/
+
+# Local OS files
+Thumbs.db
+.DS_Store

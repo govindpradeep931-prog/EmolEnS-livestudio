@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: emolens-live-studio
+    env: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: START_BACKEND
+        value: "1"
+      - key: BACKEND_PORT
+        value: "8001"

@@ -1,0 +1,16 @@
+.git
+.idea
+.pytest_cache
+.vscode
+backend/.pytest_cache
+backend/.venv
+backend/__pycache__
+backend/models/__pycache__
+frontend/reports/*.png
+node_modules
+node-v24.15.0-win-x64
+.venv
+Emotion-Detection-FER2013-master
+MultiModalSA-master
+whisper-main
+*.log

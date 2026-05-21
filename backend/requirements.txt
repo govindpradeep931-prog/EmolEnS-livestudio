@@ -1,0 +1,34 @@
+# === Core Framework ===
+fastapi
+uvicorn[standard]
+websockets
+python-multipart
+pydantic
+
+# === Computer Vision ===
+opencv-python
+mediapipe
+
+# === Deep Learning ===
+tensorflow
+torch
+torchaudio
+transformers
+
+# === NLP / Sentiment ===
+vaderSentiment
+deep-translator
+
+# === Audio Processing ===
+librosa
+soundfile
+openai-whisper
+
+# === Scientific Computing ===
+numpy
+matplotlib
+seaborn
+
+# === Testing ===
+pytest
+httpx
