@@ -1,1 +1,1 @@
-console.log('Happy developing ✨')
+require('./server');

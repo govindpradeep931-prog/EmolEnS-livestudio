@@ -3,7 +3,7 @@ setlocal
 cd /d "%~dp0"
 
 echo ============================================
-echo   EmoLens Live Studio - Launcher
+echo   Optimizing Multimodal Emotion Recognition - Launcher
 echo ============================================
 echo.
 

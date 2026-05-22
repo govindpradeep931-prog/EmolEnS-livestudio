@@ -13,6 +13,34 @@ let BACKEND_PORT = Number(process.env.BACKEND_PORT || 8001);
 let BACKEND_URL = '';
 let BACKEND_WS_URL = '';
 const START_BACKEND = process.env.START_BACKEND !== '0';
+const SUPPORTED_LANGUAGES = [
+    { code: 'en', name: 'English', group: 'International' },
+    { code: 'hi', name: 'Hindi', group: 'Indian' },
+    { code: 'te', name: 'Telugu', group: 'Indian' },
+    { code: 'ta', name: 'Tamil', group: 'Indian' },
+    { code: 'ml', name: 'Malayalam', group: 'Indian' },
+    { code: 'kn', name: 'Kannada', group: 'Indian' },
+    { code: 'bn', name: 'Bengali', group: 'Indian' },
+    { code: 'mr', name: 'Marathi', group: 'Indian' },
+    { code: 'gu', name: 'Gujarati', group: 'Indian' },
+    { code: 'pa', name: 'Punjabi', group: 'Indian' },
+    { code: 'ur', name: 'Urdu', group: 'Indian' },
+    { code: 'or', name: 'Odia', group: 'Indian' },
+    { code: 'as', name: 'Assamese', group: 'Indian' },
+    { code: 'sa', name: 'Sanskrit', group: 'Indian' },
+    { code: 'es', name: 'Spanish', group: 'International' },
+    { code: 'fr', name: 'French', group: 'International' },
+    { code: 'de', name: 'German', group: 'International' },
+    { code: 'it', name: 'Italian', group: 'International' },
+    { code: 'pt', name: 'Portuguese', group: 'International' },
+    { code: 'ru', name: 'Russian', group: 'International' },
+    { code: 'ar', name: 'Arabic', group: 'International' },
+    { code: 'zh-CN', name: 'Chinese', group: 'International' },
+    { code: 'ja', name: 'Japanese', group: 'International' },
+    { code: 'ko', name: 'Korean', group: 'International' },
+    { code: 'id', name: 'Indonesian', group: 'International' },
+    { code: 'tr', name: 'Turkish', group: 'International' }
+];
 
 function getPythonExe() {
     const windowsVenv = path.join(__dirname, 'backend', '.venv', 'Scripts', 'python.exe');
@@ -21,11 +49,43 @@ function getPythonExe() {
     const unixVenv = path.join(__dirname, 'backend', '.venv', 'bin', 'python');
     if (fs.existsSync(unixVenv)) return unixVenv;
 
+    if (process.env.PYTHON && fs.existsSync(process.env.PYTHON)) return process.env.PYTHON;
+
+    if (process.platform === 'win32') {
+        const localPrograms = path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Python');
+        if (fs.existsSync(localPrograms)) {
+            const candidates = fs.readdirSync(localPrograms)
+                .filter(name => /^Python\d+$/i.test(name))
+                .sort((a, b) => {
+                    const versionA = Number(a.replace(/\D/g, ''));
+                    const versionB = Number(b.replace(/\D/g, ''));
+                    const rank = version => (version <= 312 && version >= 310 ? 1000 + version : version);
+                    return rank(versionB) - rank(versionA);
+                })
+                .map(name => path.join(localPrograms, name, 'python.exe'));
+            const pythonExe = candidates.find(candidate => fs.existsSync(candidate));
+            if (pythonExe) return pythonExe;
+        }
+    }
+
     return process.env.PYTHON || 'python';
 }
 
 const PYTHON_EXE = getPythonExe();
 let backendProcess = null;
+let backendStatus = { running: false, error: null };
+
+function writeBackendStderr(data) {
+    const text = data.toString();
+    const filtered = text
+        .split(/\r?\n/)
+        .filter(line => !line.includes('You are sending unauthenticated requests to the HF Hub'))
+        .join('\n');
+
+    if (filtered.trim().length > 0) {
+        process.stderr.write(`[backend] ${filtered}${filtered.endsWith('\n') ? '' : '\n'}`);
+    }
+}
 
 function startBackend() {
     if (!START_BACKEND) {
@@ -39,9 +99,18 @@ function startBackend() {
         stdio: ['ignore', 'pipe', 'pipe']
     });
 
+    backendStatus = { running: true, error: null };
+    backendProcess.on('error', error => {
+        backendStatus = {
+            running: false,
+            error: `Could not start Python backend with "${PYTHON_EXE}": ${error.message}`
+        };
+        console.error(`[backend] ${backendStatus.error}`);
+    });
     backendProcess.stdout.on('data', data => process.stdout.write(`[backend] ${data}`));
-    backendProcess.stderr.on('data', data => process.stderr.write(`[backend] ${data}`));
+    backendProcess.stderr.on('data', writeBackendStderr);
     backendProcess.on('exit', (code, signal) => {
+        backendStatus.running = false;
         if (signal) {
             console.log(`[backend] stopped by ${signal}`);
             return;
@@ -80,7 +149,42 @@ app.get('/health', async (req, res) => {
         const body = await response.json();
         res.json({ status: 'ok', frontend: true, backend: body });
     } catch (error) {
-        res.status(503).json({ status: 'error', frontend: true, backend: 'unavailable' });
+        res.status(503).json({
+            status: 'error',
+            frontend: true,
+            backend: 'unavailable',
+            backendProcess: backendStatus
+        });
+    }
+});
+
+app.get('/languages', async (req, res) => {
+    try {
+        const response = await fetch(`${BACKEND_URL}/languages`);
+        const body = await response.json();
+        res.status(response.status).json(body);
+    } catch (error) {
+        res.json({
+            languages: SUPPORTED_LANGUAGES,
+            error: backendStatus.error || 'Backend language service unavailable'
+        });
+    }
+});
+
+app.post('/translate', async (req, res) => {
+    try {
+        const response = await fetch(`${BACKEND_URL}/translate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(req.body || {})
+        });
+        const body = await response.json();
+        res.status(response.status).json(body);
+    } catch (error) {
+        res.status(503).json({
+            success: false,
+            error: backendStatus.error || 'Backend translation service unavailable'
+        });
     }
 });
 
@@ -226,7 +330,7 @@ async function startServer() {
 
     startBackend();
     server.listen(port, () => {
-        console.log(`Node.js EmoLens Server running on http://localhost:${port}`);
+        console.log(`Node.js Optimizing Multimodal Emotion Recognition server running on http://localhost:${port}`);
         if (!process.env.PORT && port !== requestedPort) {
             console.log(`Port ${requestedPort} was busy, using ${port} instead.`);
         }
@@ -240,7 +344,7 @@ async function startServer() {
 }
 
 startServer().catch(error => {
-    console.error(`Failed to start EmoLens: ${error.message}`);
+    console.error(`Failed to start Optimizing Multimodal Emotion Recognition: ${error.message}`);
     stopBackend();
     process.exit(1);
 });

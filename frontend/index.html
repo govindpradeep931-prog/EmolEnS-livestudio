@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EmoLens Live Studio</title>
+    <title>Optimizing Multimodal Emotion Recognition</title>
     <link rel="stylesheet" href="/static/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
     <!-- Chart.js -->
@@ -18,8 +18,8 @@
     <div class="app-container">
         <header>
             <div class="logo">
-                <span class="gradient-text">EmoLens</span> 
-                <span class="badge">Suite</span>
+                <span class="gradient-text project-title">Optimizing Multimodal Emotion Recognition</span>
+                <span class="project-subtitle">Evaluating the Impact of Speech, Text and Visual Modalities</span>
             </div>
             <div class="tabs" style="display: flex; gap: 1rem; margin: 0 2rem;">
                 <button class="tab-btn active" onclick="switchTab('live')" style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid var(--border-color); background: var(--primary); color: white;">🔴 Live Studio</button>
@@ -72,6 +72,20 @@
                     <h3>Emotion Fusion Radar</h3>
                     <div class="chart-container">
                         <canvas id="radarChart"></canvas>
+                    </div>
+                    <div class="live-analysis-strip">
+                        <div>
+                            <span>Dominant</span>
+                            <strong id="dominant-emotion">Neutral</strong>
+                        </div>
+                        <div>
+                            <span>Confidence</span>
+                            <strong id="confidence-val">0.0%</strong>
+                        </div>
+                        <div>
+                            <span>Reload Rate</span>
+                            <strong id="update-rate">0.0 Hz</strong>
+                        </div>
                     </div>
                 </div>
 

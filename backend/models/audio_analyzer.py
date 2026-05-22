@@ -1,5 +1,8 @@
 import numpy as np
 from transformers import pipeline
+from transformers.utils import logging as transformers_logging
+
+transformers_logging.set_verbosity_error()
 
 class AudioAnalyzer:
     def __init__(self):

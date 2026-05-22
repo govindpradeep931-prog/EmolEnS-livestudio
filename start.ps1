@@ -1,4 +1,4 @@
-# EmoLens Live Studio - PowerShell launcher
+# Optimizing Multimodal Emotion Recognition - PowerShell launcher
 # Usage: .\start.ps1
 
 $ErrorActionPreference = "Stop"
@@ -25,7 +25,7 @@ function Get-NodeExe {
 }
 
 Write-Host "============================================" -ForegroundColor Cyan
-Write-Host "  EmoLens Live Studio" -ForegroundColor Cyan
+Write-Host "  Optimizing Multimodal Emotion Recognition" -ForegroundColor Cyan
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
 

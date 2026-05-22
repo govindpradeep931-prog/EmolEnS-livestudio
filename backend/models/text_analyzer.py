@@ -19,6 +19,55 @@ except ImportError:
     TRANSLATOR_AVAILABLE = False
     print("deep-translator not installed. Text modality will be English-only.")
 
+try:
+    from languages import detect_script_language
+except Exception:
+    def detect_script_language(text):
+        return "en"
+
+
+def translate_with_service(text, target="en", source="auto"):
+    if not text:
+        return {
+            "success": False,
+            "text": "",
+            "translated_text": "",
+            "source_language": source,
+            "target_language": target,
+            "error": "No text provided.",
+        }
+
+    detected_lang = detect_script_language(text) if source == "auto" else source
+    if not TRANSLATOR_AVAILABLE:
+        return {
+            "success": False,
+            "text": text,
+            "translated_text": text,
+            "source_language": detected_lang,
+            "target_language": target,
+            "error": "deep-translator is not installed.",
+        }
+
+    try:
+        translated = GoogleTranslator(source=source, target=target).translate(text)
+        return {
+            "success": True,
+            "text": text,
+            "translated_text": translated,
+            "source_language": detected_lang,
+            "target_language": target,
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "text": text,
+            "translated_text": text,
+            "source_language": detected_lang,
+            "target_language": target,
+            "error": str(e),
+        }
+
+
 class TextAnalyzer:
     def __init__(self):
         self.lexicon_analyzer = None
@@ -40,19 +89,22 @@ class TextAnalyzer:
                 print(f"Failed to load transformer, using mock: {e}")
                 self.transformer = None
 
+    def translate_text(self, text, target="en", source="auto"):
+        return translate_with_service(text, target=target, source=source)
+
     def translate_to_english(self, text):
         """Auto-detect language and translate any text to English."""
+        detected_lang = detect_script_language(text)
         if not text or not TRANSLATOR_AVAILABLE:
-            return text, "en"
+            return text, detected_lang
         try:
             translator = GoogleTranslator(source='auto', target='en')
             translated = translator.translate(text)
-            detected_lang = "auto"
             print(f"[Multilingual] Translated to English: '{translated}'")
             return translated, detected_lang
         except Exception as e:
             print(f"[Multilingual] Translation failed, using original text: {e}")
-            return text, "en"
+            return text, detected_lang
 
     def analyze_text(self, text):
         if not text:

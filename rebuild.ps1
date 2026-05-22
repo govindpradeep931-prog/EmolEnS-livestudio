@@ -1,5 +1,5 @@
-# EmoLens clean rebuild from scratch
-# Usage: cd emolens; .\rebuild.ps1
+# Optimizing Multimodal Emotion Recognition clean rebuild from scratch
+# Usage: cd optimizing-multimodal-emotion-recognition; .\rebuild.ps1
 
 $ErrorActionPreference = "Stop"
 $Root = $PSScriptRoot
@@ -35,7 +35,7 @@ function Invoke-Npm {
     }
 }
 
-Write-Host "=== EmoLens clean rebuild ===" -ForegroundColor Cyan
+Write-Host "=== Optimizing Multimodal Emotion Recognition clean rebuild ===" -ForegroundColor Cyan
 
 # Stop anything on 8000/8001
 foreach ($port in 8000, 8001) {
@@ -73,6 +73,6 @@ print('Model size:', os.path.getsize(path))
 "@
 }
 
-Write-Host "[4/4] Starting EmoLens..." -ForegroundColor Green
+Write-Host "[4/4] Starting Optimizing Multimodal Emotion Recognition..." -ForegroundColor Green
 Set-Location -LiteralPath $Root
 & "$Root\start.ps1"

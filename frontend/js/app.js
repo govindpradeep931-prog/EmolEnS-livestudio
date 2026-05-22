@@ -3,6 +3,39 @@ let isLive = false;
 let stream = null;
 let captureInterval = null;
 let socket = null;
+const LIVE_UPDATE_MS = 100;
+const MAX_TIMELINE_POINTS = 60;
+let lastUpdateAt = performance.now();
+let updatesPerSecond = 0;
+
+const fallbackLanguages = [
+    { code: 'en', name: 'English', group: 'International' },
+    { code: 'hi', name: 'Hindi', group: 'Indian' },
+    { code: 'te', name: 'Telugu', group: 'Indian' },
+    { code: 'ta', name: 'Tamil', group: 'Indian' },
+    { code: 'ml', name: 'Malayalam', group: 'Indian' },
+    { code: 'kn', name: 'Kannada', group: 'Indian' },
+    { code: 'bn', name: 'Bengali', group: 'Indian' },
+    { code: 'mr', name: 'Marathi', group: 'Indian' },
+    { code: 'gu', name: 'Gujarati', group: 'Indian' },
+    { code: 'pa', name: 'Punjabi', group: 'Indian' },
+    { code: 'ur', name: 'Urdu', group: 'Indian' },
+    { code: 'or', name: 'Odia', group: 'Indian' },
+    { code: 'as', name: 'Assamese', group: 'Indian' },
+    { code: 'sa', name: 'Sanskrit', group: 'Indian' },
+    { code: 'es', name: 'Spanish', group: 'International' },
+    { code: 'fr', name: 'French', group: 'International' },
+    { code: 'de', name: 'German', group: 'International' },
+    { code: 'it', name: 'Italian', group: 'International' },
+    { code: 'pt', name: 'Portuguese', group: 'International' },
+    { code: 'ru', name: 'Russian', group: 'International' },
+    { code: 'ar', name: 'Arabic', group: 'International' },
+    { code: 'zh-CN', name: 'Chinese', group: 'International' },
+    { code: 'ja', name: 'Japanese', group: 'International' },
+    { code: 'ko', name: 'Korean', group: 'International' },
+    { code: 'id', name: 'Indonesian', group: 'International' },
+    { code: 'tr', name: 'Turkish', group: 'International' }
+];
 
 // Audio State
 let audioContext = null;
@@ -27,6 +60,9 @@ const acousticCtx = acousticCanvas.getContext('2d');
 const visualStatus = document.getElementById('status-visual');
 const audioStatus = document.getElementById('status-audio');
 const textStatus = document.getElementById('status-text');
+const dominantEmotionEl = document.getElementById('dominant-emotion');
+const confidenceEl = document.getElementById('confidence-val');
+const updateRateEl = document.getElementById('update-rate');
 
 // Session Data
 let sessionEmotions = { 'Angry': 0, 'Disgust': 0, 'Fear': 0, 'Happy': 0, 'Sad': 0, 'Surprise': 0, 'Neutral': 0 };
@@ -169,6 +205,36 @@ function drawAcoustic() {
     }
     acousticCtx.lineTo(acousticCanvas.width, acousticCanvas.height / 2);
     acousticCtx.stroke();
+}
+
+async function loadLanguages() {
+    let languages = fallbackLanguages;
+    try {
+        const response = await fetch('/languages');
+        const data = await response.json();
+        if (Array.isArray(data.languages) && data.languages.length) {
+            languages = data.languages;
+        }
+    } catch (e) {
+        console.warn('Using fallback language list:', e);
+    }
+
+    const select = document.getElementById('target-lang');
+    if (!select) return;
+
+    const grouped = languages.reduce((acc, language) => {
+        const group = language.group || 'International';
+        if (!acc[group]) acc[group] = [];
+        acc[group].push(language);
+        return acc;
+    }, {});
+
+    select.innerHTML = Object.entries(grouped).map(([group, items]) => {
+        const options = items
+            .map(language => `<option value="${language.code}">${language.name}</option>`)
+            .join('');
+        return `<optgroup label="${group} Languages">${options}</optgroup>`;
+    }).join('');
 }
 
 // Render dynamic face bounding boxes and MediaPipe mesh points
@@ -321,13 +387,13 @@ async function startSession() {
     socket = new WebSocket(`${wsProtocol}//${window.location.host}/ws`);
     
     socket.onopen = () => {
-        console.log("WebSocket connected to EmoLens ML Backend");
+        console.log("WebSocket connected to Optimizing Multimodal Emotion Recognition ML Backend");
         isLive = true;
         liveDot.classList.add('active');
         startBtn.disabled = true;
         stopBtn.disabled = false;
         
-        // Streaming Event Loop (5 Hz = every 200ms)
+        // Streaming Event Loop (10 Hz = every 100ms)
         captureInterval = setInterval(() => {
             if (!isLive || socket.readyState !== WebSocket.OPEN) return;
             
@@ -340,7 +406,7 @@ async function startSession() {
             
             socket.send(JSON.stringify(payload));
             accumulatedAudio = []; // Reset audio buffer
-        }, 200);
+        }, LIVE_UPDATE_MS);
     };
     
     socket.onmessage = (event) => {
@@ -412,7 +478,19 @@ function updateDashboard(fused) {
     const emotions = Object.keys(emotionColors);
     const vals = emotions.map(e => fused[e] || 0.0);
     radarChart.data.datasets[0].data = vals;
-    radarChart.update();
+    radarChart.update('none');
+
+    const ranked = emotions
+        .map((emotion, index) => ({ emotion, score: vals[index] }))
+        .sort((a, b) => b.score - a.score);
+    const top = ranked[0] || { emotion: 'Neutral', score: 0 };
+    const nowPerf = performance.now();
+    updatesPerSecond = 1000 / Math.max(1, nowPerf - lastUpdateAt);
+    lastUpdateAt = nowPerf;
+
+    if (dominantEmotionEl) dominantEmotionEl.innerText = top.emotion;
+    if (confidenceEl) confidenceEl.innerText = `${(top.score * 100).toFixed(1)}%`;
+    if (updateRateEl) updateRateEl.innerText = `${updatesPerSecond.toFixed(1)} Hz`;
     
     const now = new Date().toLocaleTimeString();
     timelineChart.data.labels.push(now);
@@ -421,11 +499,11 @@ function updateDashboard(fused) {
         sessionEmotions[e] += vals[i];
     });
     
-    if (timelineChart.data.labels.length > 20) {
+    if (timelineChart.data.labels.length > MAX_TIMELINE_POINTS) {
         timelineChart.data.labels.shift();
         timelineChart.data.datasets.forEach(d => d.data.shift());
     }
-    timelineChart.update();
+    timelineChart.update('none');
     frameCount++;
 }
 
@@ -559,14 +637,28 @@ async function translateText() {
     
     output.innerText = "Translating...";
     try {
-        const response = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|${targetLang}`);
+        const response = await fetch('/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                text,
+                source_language: 'auto',
+                target_language: targetLang
+            })
+        });
         const data = await response.json();
-        output.innerText = data.responseData.translatedText;
+        if (data.success) {
+            output.innerText = data.translated_text;
+        } else {
+            output.innerText = data.error || 'Translation failed.';
+        }
     } catch (e) {
-        output.innerText = "Error translating text. Check connection.";
+        output.innerText = "Error translating text. Check backend connection.";
         console.error(e);
     }
 }
+
+document.addEventListener('DOMContentLoaded', loadLanguages);
 
 // Simulated Media File Analyzer
 async function analyzeUploadedFile() {

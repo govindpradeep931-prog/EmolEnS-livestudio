@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: emolens-live-studio
+    name: optimizing-multimodal-emotion-recognition
     env: docker
     plan: free
     dockerfilePath: ./Dockerfile

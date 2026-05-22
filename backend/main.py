@@ -1,4 +1,13 @@
 import os
+os.environ.setdefault("TF_ENABLE_ONEDNN_OPTS", "0")
+os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+import logging
+import warnings
+logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
+logging.getLogger("transformers").setLevel(logging.ERROR)
+warnings.filterwarnings("ignore", message=".*unauthenticated requests to the HF Hub.*")
 # Set these to "1" ONLY if you have already downloaded the HuggingFace models locally:
 # os.environ["TRANSFORMERS_OFFLINE"] = "1"
 # os.environ["HF_HUB_OFFLINE"] = "1"
@@ -11,6 +20,7 @@ import cv2
 import numpy as np
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket
+from pydantic import BaseModel
 from starlette.websockets import WebSocketDisconnect
 import uvicorn
 
@@ -22,23 +32,29 @@ if str(_THIS_DIR) not in _sys.path:
     _sys.path.insert(0, str(_THIS_DIR))
 
 from models.fer_model import VisualFER
-from models.text_analyzer import TextAnalyzer
+from models.text_analyzer import TextAnalyzer, translate_with_service
 from models.audio_analyzer import AudioAnalyzer
 from models.fusion_engine import FusionEngine
 from models.kinematic_tracker import KinematicTracker
+from languages import SUPPORTED_LANGUAGES, SUPPORTED_LANGUAGE_CODES
+
+
+class TranslationRequest(BaseModel):
+    text: str
+    target_language: str = "en"
+    source_language: str = "auto"
 
 # Model handles (loaded in background so the server binds quickly)
 visual_fer = None
 text_analyzer = None
 audio_analyzer = None
 kinematic_tracker = None
-fusion_engine = FusionEngine()
 _models_ready = threading.Event()
 
 
 def _load_models():
     global visual_fer, text_analyzer, audio_analyzer, kinematic_tracker
-    print("[EmoLens] Loading ML models (this may take a minute on first run)...")
+    print("[Emotion Recognition] Loading ML models (this may take a minute on first run)...")
 
     try:
         visual_fer = VisualFER()
@@ -65,12 +81,12 @@ def _load_models():
         kinematic_tracker = None
 
     _models_ready.set()
-    print("[EmoLens] ML models ready.")
+    print("[Emotion Recognition] ML models ready.")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    loader = threading.Thread(target=_load_models, daemon=True, name="emolens-model-loader")
+    loader = threading.Thread(target=_load_models, daemon=True, name="emotion-recognition-model-loader")
     loader.start()
     yield
 
@@ -81,7 +97,7 @@ app = FastAPI(lifespan=lifespan)
 @app.get("/")
 def root():
     return {
-        "status": "EmoLens backend is running",
+            "status": "Optimizing Multimodal Emotion Recognition backend is running",
         "models_ready": _models_ready.is_set(),
         "message": "Use /docs for API documentation and /ws for WebSocket connections."
     }
@@ -92,11 +108,34 @@ def health_check():
     return {"status": "ok", "models_ready": _models_ready.is_set()}
 
 
+@app.get("/languages")
+def languages():
+    return {"languages": SUPPORTED_LANGUAGES}
+
+
+@app.post("/translate")
+def translate(request: TranslationRequest):
+    target = request.target_language
+    if target not in SUPPORTED_LANGUAGE_CODES:
+        return {
+            "success": False,
+            "error": f"Unsupported target language: {target}",
+            "languages": SUPPORTED_LANGUAGES,
+        }
+
+    return translate_with_service(
+        request.text,
+        target=target,
+        source=request.source_language or "auto",
+    )
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     print("WebSocket connected")
     session_data = {"timeline": []}
+    fusion_engine = FusionEngine()
 
     try:
         while True:
@@ -176,12 +215,12 @@ async def websocket_endpoint(websocket: WebSocket):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "8001"))
     print("=" * 50)
-    print("  EmoLens ML Backend")
+    print("  Optimizing Multimodal Emotion Recognition ML Backend")
     print(f"  http://localhost:{port}")
     print(f"  API docs: http://localhost:{port}/docs")
     print("=" * 50)
     print("Start the UI in another terminal:")
-    print('  cd emolens && node server.js')
+    print('  cd optimizing-multimodal-emotion-recognition && node server.js')
     print("  (or run .\\start.ps1 to launch both)")
     print("=" * 50)
     try:
@@ -189,5 +228,5 @@ if __name__ == "__main__":
     except OSError as e:
         if getattr(e, "winerror", None) == 10048 or "address already in use" in str(e).lower():
             print(f"\nERROR: Port {port} is already in use.")
-            print("Stop the other EmoLens backend process, then try again.")
+            print("Stop the other emotion recognition backend process, then try again.")
         raise

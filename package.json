@@ -1,12 +1,12 @@
 {
-  "name": "emolens-live-studio",
+  "name": "optimizing-multimodal-emotion-recognition",
   "version": "1.0.0",
-  "description": "EmoLens Live Studio multimodal emotion analysis app",
+  "description": "Optimizing Multimodal Emotion Recognition: Evaluating the Impact of Speech, Text and Visual Modalities",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test": "python -m pytest backend -q"
+    "test": "node scripts/run-python.js -m pytest backend -q"
   },
   "dependencies": {
     "express": "^5.2.1",
