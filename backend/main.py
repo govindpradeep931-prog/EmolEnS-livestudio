@@ -31,11 +31,6 @@ _THIS_DIR = _Path(__file__).resolve().parent
 if str(_THIS_DIR) not in _sys.path:
     _sys.path.insert(0, str(_THIS_DIR))
 
-from models.fer_model import VisualFER
-from models.text_analyzer import TextAnalyzer, translate_with_service
-from models.audio_analyzer import AudioAnalyzer
-from models.fusion_engine import FusionEngine
-from models.kinematic_tracker import KinematicTracker
 from languages import SUPPORTED_LANGUAGES, SUPPORTED_LANGUAGE_CODES
 
 
@@ -49,12 +44,25 @@ visual_fer = None
 text_analyzer = None
 audio_analyzer = None
 kinematic_tracker = None
+FusionEngine = None
 _models_ready = threading.Event()
 
 
 def _load_models():
-    global visual_fer, text_analyzer, audio_analyzer, kinematic_tracker
+    global visual_fer, text_analyzer, audio_analyzer, kinematic_tracker, FusionEngine
     print("[Emotion Recognition] Loading ML models (this may take a minute on first run)...")
+
+    try:
+        from models.fer_model import VisualFER
+        from models.text_analyzer import TextAnalyzer
+        from models.audio_analyzer import AudioAnalyzer
+        from models.fusion_engine import FusionEngine as LoadedFusionEngine
+        from models.kinematic_tracker import KinematicTracker
+        FusionEngine = LoadedFusionEngine
+    except Exception as e:
+        print(f"Failed to import ML modules: {e}")
+        _models_ready.set()
+        return
 
     try:
         visual_fer = VisualFER()
@@ -123,11 +131,22 @@ def translate(request: TranslationRequest):
             "languages": SUPPORTED_LANGUAGES,
         }
 
-    return translate_with_service(
-        request.text,
-        target=target,
-        source=request.source_language or "auto",
-    )
+    try:
+        from models.text_analyzer import translate_with_service
+        return translate_with_service(
+            request.text,
+            target=target,
+            source=request.source_language or "auto",
+        )
+    except Exception as e:
+        return {
+            "success": False,
+            "text": request.text,
+            "translated_text": request.text,
+            "source_language": request.source_language or "auto",
+            "target_language": target,
+            "error": f"Translation service unavailable: {e}",
+        }
 
 
 @app.websocket("/ws")
@@ -135,7 +154,11 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     print("WebSocket connected")
     session_data = {"timeline": []}
-    fusion_engine = FusionEngine()
+    if FusionEngine is None:
+        from models.fusion_engine import FusionEngine as LocalFusionEngine
+        fusion_engine = LocalFusionEngine()
+    else:
+        fusion_engine = FusionEngine()
 
     try:
         while True:
