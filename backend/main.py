@@ -16,8 +16,6 @@ import asyncio
 import base64
 import json
 import threading
-import cv2
-import numpy as np
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket
 from pydantic import BaseModel
@@ -177,6 +175,9 @@ async def websocket_endpoint(websocket: WebSocket):
                 if not visual_fer:
                     visual_res = None
                 else:
+                    import cv2
+                    import numpy as np
+
                     img_str = payload["image"]
                     if "," in img_str:
                         img_str = img_str.split(",")[1]

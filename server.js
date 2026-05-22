@@ -73,9 +73,24 @@ function getPythonExe() {
 
 const PYTHON_EXE = getPythonExe();
 let backendProcess = null;
-let backendStatus = { running: false, error: null };
+let backendStatus = {
+    running: false,
+    error: null,
+    startedAt: null,
+    exitedAt: null,
+    exitCode: null,
+    signal: null,
+    lastStdout: '',
+    lastStderr: ''
+};
+
+function rememberBackendLog(field, data) {
+    const text = data.toString();
+    backendStatus[field] = (backendStatus[field] + text).slice(-4000);
+}
 
 function writeBackendStderr(data) {
+    rememberBackendLog('lastStderr', data);
     const text = data.toString();
     const filtered = text
         .split(/\r?\n/)
@@ -99,7 +114,16 @@ function startBackend() {
         stdio: ['ignore', 'pipe', 'pipe']
     });
 
-    backendStatus = { running: true, error: null };
+    backendStatus = {
+        running: true,
+        error: null,
+        startedAt: new Date().toISOString(),
+        exitedAt: null,
+        exitCode: null,
+        signal: null,
+        lastStdout: '',
+        lastStderr: ''
+    };
     backendProcess.on('error', error => {
         backendStatus = {
             running: false,
@@ -107,10 +131,16 @@ function startBackend() {
         };
         console.error(`[backend] ${backendStatus.error}`);
     });
-    backendProcess.stdout.on('data', data => process.stdout.write(`[backend] ${data}`));
+    backendProcess.stdout.on('data', data => {
+        rememberBackendLog('lastStdout', data);
+        process.stdout.write(`[backend] ${data}`);
+    });
     backendProcess.stderr.on('data', writeBackendStderr);
     backendProcess.on('exit', (code, signal) => {
         backendStatus.running = false;
+        backendStatus.exitedAt = new Date().toISOString();
+        backendStatus.exitCode = code;
+        backendStatus.signal = signal;
         if (signal) {
             console.log(`[backend] stopped by ${signal}`);
             return;
@@ -149,11 +179,28 @@ app.get('/health', async (req, res) => {
         const body = await response.json();
         res.json({ status: 'ok', frontend: true, backend: body });
     } catch (error) {
+        if (backendStatus.running) {
+            res.json({
+                status: 'ok',
+                frontend: true,
+                backend: {
+                    status: 'starting',
+                    models_ready: false,
+                    url: BACKEND_URL,
+                    message: 'Python backend process is running but has not accepted health checks yet.',
+                    connection_error: error.message
+                },
+                backendProcess: backendStatus
+            });
+            return;
+        }
+
         res.status(503).json({
             status: 'error',
             frontend: true,
             backend: 'unavailable',
-            backendProcess: backendStatus
+            backendProcess: backendStatus,
+            connection_error: error.message
         });
     }
 });
